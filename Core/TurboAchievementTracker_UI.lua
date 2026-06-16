@@ -156,9 +156,28 @@ local function UpdateAchievementsPage()
         table.insert(achievementsMap[q.achievementID].quests, q)
     end
     
-    -- Sort by achievement name
+    -- Calculate completed criteria count and total criteria count for sorting
+    for _, ach in ipairs(progressableList) do
+        local numCriteria = GetAchievementNumCriteria(ach.id)
+        local completedCount = 0
+        for i = 1, numCriteria do
+            local _, _, completed = GetAchievementCriteriaInfo(ach.id, i)
+            if completed then completedCount = completedCount + 1 end
+        end
+        ach.completedCount = completedCount
+        ach.numCriteria = numCriteria
+    end
+    
+    -- Sort by completed criteria count (descending)
+    -- Fallbacks: total criteria count (descending), then alphabetically by name
     table.sort(progressableList, function(a, b)
-        return a.name < b.name
+        if a.completedCount ~= b.completedCount then
+            return a.completedCount > b.completedCount
+        elseif a.numCriteria ~= b.numCriteria then
+            return a.numCriteria > b.numCriteria
+        else
+            return a.name < b.name
+        end
     end)
     
     if #progressableList == 0 then
@@ -183,14 +202,7 @@ local function UpdateAchievementsPage()
     
     local yOffset = 10
     for _, ach in ipairs(progressableList) do
-        local numCriteria = GetAchievementNumCriteria(ach.id)
-        local completedCount = 0
-        for i = 1, numCriteria do
-            local _, _, completed = GetAchievementCriteriaInfo(ach.id, i)
-            if completed then completedCount = completedCount + 1 end
-        end
-        
-        local countText = string.format("(%d/%d criteria completed)", completedCount, numCriteria)
+        local countText = string.format("(%d/%d criteria completed)", ach.completedCount, ach.numCriteria)
         local rowHeight = 36 + (#ach.quests * 48)
         
         local row = CreateFrame("Frame", nil, page.scrollChild)
@@ -253,15 +265,6 @@ local function UpdateAchievementsPage()
     if page.scrollFrame.scrollbar and page.scrollFrame.scrollbar.UpdateScrollbar then
         page.scrollFrame.scrollbar:UpdateScrollbar()
     end
-end
-
--- Helper to draw a thin divider line between settings options
-local function AddSeparator(parent, yOffset)
-    local sep = parent:CreateTexture(nil, "ARTWORK")
-    sep:SetColorTexture(1, 1, 1, 0.15)
-    sep:SetPoint("TOPLEFT", parent, "TOPLEFT", 15, -yOffset)
-    sep:SetSize(530, 1)
-    return yOffset + 10
 end
 
 -- Helper to create setting option rows similar to mQoL
@@ -410,8 +413,7 @@ local function UpdateSettingsPage()
             end
         })
         page.cbMinimap = cbMinimap
-        yOffset = yOffset + rowMinimap:GetHeight() + 8
-        yOffset = AddSeparator(child, yOffset)
+        yOffset = yOffset + rowMinimap:GetHeight() + 15
         
         -- 2. Login Reminder Option Row
         local rowReminder, cbReminder = AddOptionRow(child, yOffset, "Show login chat reminder of needed quests", "checkbox", {
@@ -421,22 +423,9 @@ local function UpdateSettingsPage()
             end
         })
         page.cbReminder = cbReminder
-        yOffset = yOffset + rowReminder:GetHeight() + 8
-        yOffset = AddSeparator(child, yOffset)
+        yOffset = yOffset + rowReminder:GetHeight() + 15
         
-        -- 3. Debug Prints Option Row
-        local rowDebug, cbDebug = AddOptionRow(child, yOffset, "Enable debug print to chat on scan", "checkbox", {
-            value = TAT.db.enableDebug,
-            onValueChanged = function(_, checked)
-                TAT.db.enableDebug = checked
-                TAT:RunScan()
-            end
-        })
-        page.cbDebug = cbDebug
-        yOffset = yOffset + rowDebug:GetHeight() + 8
-        yOffset = AddSeparator(child, yOffset)
-        
-        -- 4. UI Scale Slider Row
+        -- 3. UI Scale Slider Row
         -- EditBox for scale input/display
         local scaleEditBox = mQoL_Styles.CreateCustomInputBox(child, 40, 20)
         scaleEditBox.bg = scaleEditBox:CreateTexture(nil, "BACKGROUND")
@@ -498,11 +487,11 @@ local function UpdateSettingsPage()
         page.scaleSlider = slider
         page.scaleEditBox = scaleEditBox
         
-        yOffset = yOffset + rowScale:GetHeight() + 15
+        yOffset = yOffset + rowScale:GetHeight() + 25
         
-        -- 5. Manual Scan Button
+        -- 4. Manual Scan Button
         local scanBtn = mQoL_Styles.CreateCustomButton(child, "Run Manual Scan", 200, 30)
-        scanBtn:SetPoint("TOP", child, "TOP", 0, -yOffset)
+        scanBtn:SetPoint("TOPLEFT", child, "TOPLEFT", 25, -yOffset)
         scanBtn:SetScript("OnClick", function()
             TAT:RunScan(true)
             print("|cff00ff00[TurboAchievementTracker]:|r Manual scan completed successfully.")
@@ -516,7 +505,6 @@ local function UpdateSettingsPage()
     -- Sync values
     page.cbMinimap:SetValue(TAT.db.minimap.hide)
     page.cbReminder:SetValue(TAT.db.showLoginReminder)
-    page.cbDebug:SetValue(TAT.db.enableDebug)
     page.scaleSlider:SetValue(TAT.db.ui.scale)
     page.scaleSlider:UpdateThumb()
     page.scaleEditBox:SetText(string.format("%.2f", TAT.db.ui.scale))

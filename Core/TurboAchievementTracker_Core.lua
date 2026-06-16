@@ -73,6 +73,11 @@ local function ScanAchievement(achievementID, criteriaList)
     if not id then return end
     if completed and wasEarnedByMe then return end -- Skip completed achievements
 
+    -- Skip Mythic+ Keystone achievements
+    if name and string.find(name:lower(), "resilient keystone", 1, true) then
+        return
+    end
+
     local numCriteria = GetAchievementNumCriteria(achievementID)
     for i = 1, numCriteria do
         local criteriaString, criteriaType, criteriaCompleted, _, _, _, _, assetID = GetAchievementCriteriaInfo(achievementID, i)

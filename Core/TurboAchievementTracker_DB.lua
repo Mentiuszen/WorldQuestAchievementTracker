@@ -3,7 +3,7 @@ TAT.db = {}
 
 local defaultSettings = {
     showLoginReminder = true,
-    enableDebug = true,
+    enableDebug = false,
     filterPetBattle = true,
     filterPvP = false,
     filterProfession = false,
