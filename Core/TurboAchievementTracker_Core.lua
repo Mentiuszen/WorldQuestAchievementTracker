@@ -59,10 +59,9 @@ local function IsMatch(wqTitle, criteriaName)
     local crit = strtrim(criteriaName:lower())
     if wq == crit then return true end
     
-    if #wq >= 4 and #crit >= 4 then
-        if string.find(wq, crit, 1, true) or string.find(crit, wq, 1, true) then
-            return true
-        end
+    -- Only allow substring matches if the criterion is descriptive/long enough (>= 8 characters)
+    if #crit >= 8 and string.find(wq, crit, 1, true) then
+        return true
     end
     return false
 end
@@ -82,9 +81,9 @@ local function ScanAchievement(achievementID, criteriaList)
     for i = 1, numCriteria do
         local criteriaString, criteriaType, criteriaCompleted, _, _, _, _, assetID = GetAchievementCriteriaInfo(achievementID, i)
         
-        -- Check if criterion is a sub-achievement (meta-achievement case)
+        -- Check if criterion is a sub-achievement (meta-achievement case, type 8)
         local isSubAchievement = false
-        if assetID and assetID > 0 then
+        if criteriaType == 8 and assetID and assetID > 0 then
             local subId, subName, _, subCompleted, _, _, _, _, _, _, _, _, subEarned = GetAchievementInfo(assetID)
             if subId then
                 isSubAchievement = true
@@ -94,16 +93,67 @@ local function ScanAchievement(achievementID, criteriaList)
             end
         end
 
-        if not isSubAchievement and not criteriaCompleted and criteriaString and criteriaString ~= "" then
-            local cleanKey = strtrim(criteriaString:lower())
-            criteriaList[cleanKey] = {
+        if not isSubAchievement and not criteriaCompleted then
+            local info = {
                 achievementID = achievementID,
                 achievementName = name,
-                criteriaString = criteriaString,
+                criteriaString = criteriaString or "",
                 criteriaIndex = i
             }
+            if criteriaType == 27 and assetID and assetID > 0 then
+                criteriaList[assetID] = criteriaList[assetID] or {}
+                table.insert(criteriaList[assetID], info)
+            elseif criteriaString and criteriaString ~= "" then
+                local cleanKey = strtrim(criteriaString:lower())
+                criteriaList[cleanKey] = criteriaList[cleanKey] or {}
+                table.insert(criteriaList[cleanKey], info)
+            end
         end
     end
+end
+
+-- Helper to check if a category or its parents belong to excluded categories (specific PvP subcategories, Dungeons & Raids)
+local function IsExcludedCategory(catID)
+    local name, parentID = GetCategoryInfo(catID)
+    if not name then return false end
+    
+    local rootName = name
+    local currentID = parentID
+    for i = 1, 10 do
+        if not currentID or currentID == -1 then break end
+        local pName, nextParent = GetCategoryInfo(currentID)
+        if pName then
+            rootName = pName
+        end
+        currentID = nextParent
+    end
+    
+    local rootLower = rootName:lower()
+    if rootLower == "dungeons & raids" then
+        return true
+    elseif rootLower == "player vs. player" then
+        local nameLower = name:lower()
+        if nameLower == "warsong gulch" or
+           nameLower == "arathi basin" or
+           nameLower == "eye of the storm" or
+           nameLower == "alterac valley" or
+           nameLower == "ashran" or
+           nameLower == "isle of conquest" or
+           nameLower == "wintergrasp" or
+           nameLower == "battle for gilneas" or
+           nameLower == "twin peaks" or
+           nameLower == "silvershard mines" or
+           nameLower == "temple of kotmogu" or
+           nameLower == "seething shore" or
+           nameLower == "deepwind gorge" or
+           nameLower == "deephaul ravine" or
+           nameLower == "rated battleground" or
+           nameLower == "arena" or
+           nameLower == "battlegrounds" then
+            return true
+        end
+    end
+    return false
 end
 
 TAT.criteriaLookupBuilt = false
@@ -126,14 +176,16 @@ function TAT:RebuildCriteriaLookup(force)
     local totalAchievementsInGame = 0
     local scannedAchievementsCount = 0
     for _, catID in ipairs(categories) do
-        local name, parentID = GetCategoryInfo(catID)
-        local total = GetCategoryNumAchievements(catID)
-        totalAchievementsInGame = totalAchievementsInGame + total
-        for i = 1, total do
-            local id, achName, _, achCompleted, _, _, _, _, _, _, _, _, wasEarnedByMe = GetAchievementInfo(catID, i)
-            if id and not (achCompleted and wasEarnedByMe) then
-                scannedAchievementsCount = scannedAchievementsCount + 1
-                ScanAchievement(id, TAT.criteriaLookup)
+        if not IsExcludedCategory(catID) then
+            local name, parentID = GetCategoryInfo(catID)
+            local total = GetCategoryNumAchievements(catID)
+            totalAchievementsInGame = totalAchievementsInGame + total
+            for i = 1, total do
+                local id, achName, _, achCompleted, _, _, _, _, _, _, _, _, wasEarnedByMe = GetAchievementInfo(catID, i)
+                if id and not (achCompleted and wasEarnedByMe) then
+                    scannedAchievementsCount = scannedAchievementsCount + 1
+                    ScanAchievement(id, TAT.criteriaLookup)
+                end
             end
         end
     end
@@ -145,8 +197,8 @@ function TAT:RebuildCriteriaLookup(force)
     end
     
     local criteriaCount = 0
-    for _ in pairs(TAT.criteriaLookup) do
-        criteriaCount = criteriaCount + 1
+    for _, infoList in pairs(TAT.criteriaLookup) do
+        criteriaCount = criteriaCount + #infoList
     end
     
     TAT.lastScanStats = {
@@ -215,35 +267,60 @@ function TAT:RunScan(force)
                             local tagInfo = C_QuestLog.GetQuestTagInfo(questID)
                             local isPetBattle = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.PetBattle
                             local isPvP = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.PvP
-                            local isProfession = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.Professions
+                            local isProfession = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.Profession
                             local isNormal = not isPetBattle and not isPvP and not isProfession
                             
-                            -- Compare quest title against missing criteria
-                            for critLower, critInfo in pairs(TAT.criteriaLookup) do
-                                if IsMatch(title, critInfo.criteriaString) then
-                                    local timeLeft = C_TaskQuest.GetQuestTimeLeftMinutes(questID) or 0
-                                    local mapInfo = C_Map.GetMapInfo(mapID)
-                                    local zoneName = mapInfo and mapInfo.name or "Unknown Zone"
-                                    
-                                    local questData = {
-                                        questID = questID,
-                                        title = title,
-                                        zoneName = zoneName,
-                                        mapID = mapID,
-                                        timeLeft = timeLeft,
-                                        achievementID = critInfo.achievementID,
-                                        achievementName = critInfo.achievementName,
-                                        criteriaString = critInfo.criteriaString,
-                                        isPetBattle = isPetBattle,
-                                        isPvP = isPvP,
-                                        isProfession = isProfession,
-                                        isNormal = isNormal,
-                                        expansion = expansion
-                                    }
-                                    
-                                    table.insert(TAT.scannedNeededQuests, questData)
-                                    break
+                            local matchedInfos = {}
+                            local addedAchievements = {}
+                            
+                            -- 1. Direct Quest ID Match (O(1))
+                            local idMatches = TAT.criteriaLookup[questID]
+                            if idMatches then
+                                for _, info in ipairs(idMatches) do
+                                    if not addedAchievements[info.achievementID] then
+                                        addedAchievements[info.achievementID] = true
+                                        table.insert(matchedInfos, info)
+                                    end
                                 end
+                            end
+                            
+                            -- 2. Fallback Name Match (for non-Quest criteria, key is a string)
+                            for key, infoList in pairs(TAT.criteriaLookup) do
+                                if type(key) == "string" then
+                                    for _, info in ipairs(infoList) do
+                                        if not addedAchievements[info.achievementID] then
+                                            if IsMatch(title, info.criteriaString) then
+                                                addedAchievements[info.achievementID] = true
+                                                table.insert(matchedInfos, info)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            -- Process all matched criteria for this quest
+                            for _, critInfo in ipairs(matchedInfos) do
+                                local timeLeft = C_TaskQuest.GetQuestTimeLeftMinutes(questID) or 0
+                                local mapInfo = C_Map.GetMapInfo(mapID)
+                                local zoneName = mapInfo and mapInfo.name or "Unknown Zone"
+                                
+                                local questData = {
+                                    questID = questID,
+                                    title = title,
+                                    zoneName = zoneName,
+                                    mapID = mapID,
+                                    timeLeft = timeLeft,
+                                    achievementID = critInfo.achievementID,
+                                    achievementName = critInfo.achievementName,
+                                    criteriaString = critInfo.criteriaString,
+                                    isPetBattle = isPetBattle,
+                                    isPvP = isPvP,
+                                    isProfession = isProfession,
+                                    isNormal = isNormal,
+                                    expansion = expansion
+                                }
+                                
+                                table.insert(TAT.scannedNeededQuests, questData)
                             end
                         end
                     end
