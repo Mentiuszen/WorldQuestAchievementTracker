@@ -14,6 +14,7 @@ local defaultSettings = {
         ["Shadowlands"] = true,
         ["Dragonflight"] = true,
         ["TheWarWithin"] = true,
+        ["Midnight"] = true,
     },
     minimap = {
         hide = false,

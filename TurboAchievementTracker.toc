@@ -1,9 +1,12 @@
 ## Interface: 120005, 120007
 ## Title: TurboAchievementTracker
 ## Notes: Tracks world quests needed for time-gated achievements (especially Pet Battles).
-## Author: Antigravity & Mentiuszen
+## Author: Mentiuszen
 ## Version: 1.0.0
 ## SavedVariables: TurboAchievementTracker_DB
+
+Templates\mQoL_Styles.lua
+Templates\mQoL_Templates.lua
 
 Core\TurboAchievementTracker_DB.lua
 Core\TurboAchievementTracker_Core.lua

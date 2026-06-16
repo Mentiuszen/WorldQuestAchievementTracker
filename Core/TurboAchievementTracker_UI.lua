@@ -1,7 +1,7 @@
 local addonName, TAT = ...
 TAT.UI = {}
 
-local activeTab = "quests"
+local activeTab = "achievements"
 local mainFrame
 
 -- UI Styling Constants
@@ -12,245 +12,148 @@ local COLOR_BORDER = {0.2, 0.2, 0.2, 1}
 local COLOR_CARD = {0.1, 0.1, 0.1, 0.9}
 local COLOR_CARD_HOVER = {0.15, 0.15, 0.15, 1}
 
--- Helper: Set solid color backdrop with a thin border
-local function ApplyFlatStyle(frame, bgColor, borderColor)
-    if not frame.tatBg then
-        frame.tatBg = frame:CreateTexture(nil, "BACKGROUND")
-        frame.tatBg:SetAllPoints()
-    end
-    frame.tatBg:SetColorTexture(unpack(bgColor))
+-- Helper to update the achievements list and filter checkboxes
+local function UpdateAchievementsPage()
+    local page = mainFrame.achievementsPage
+    if not page then return end
     
-    if borderColor then
-        if not frame.tatBorder then
-            frame.tatBorder = CreateFrame("Frame", nil, frame)
-            frame.tatBorder:SetAllPoints()
-            
-            frame.tatBorder.top = frame.tatBorder:CreateTexture(nil, "OVERLAY")
-            frame.tatBorder.top:SetHeight(1)
-            frame.tatBorder.top:SetPoint("TOPLEFT", 0, 0)
-            frame.tatBorder.top:SetPoint("TOPRIGHT", 0, 0)
-            
-            frame.tatBorder.bottom = frame.tatBorder:CreateTexture(nil, "OVERLAY")
-            frame.tatBorder.bottom:SetHeight(1)
-            frame.tatBorder.bottom:SetPoint("BOTTOMLEFT", 0, 0)
-            frame.tatBorder.bottom:SetPoint("BOTTOMRIGHT", 0, 0)
-            
-            frame.tatBorder.left = frame.tatBorder:CreateTexture(nil, "OVERLAY")
-            frame.tatBorder.left:SetWidth(1)
-            frame.tatBorder.left:SetPoint("TOPLEFT", 0, 0)
-            frame.tatBorder.left:SetPoint("BOTTOMLEFT", 0, 0)
-            
-            frame.tatBorder.right = frame.tatBorder:CreateTexture(nil, "OVERLAY")
-            frame.tatBorder.right:SetWidth(1)
-            frame.tatBorder.right:SetPoint("TOPRIGHT", 0, 0)
-            frame.tatBorder.right:SetPoint("BOTTOMRIGHT", 0, 0)
+    -- 1. Create filters if they don't exist yet
+    if not page.filtersFrame then
+        local ff = CreateFrame("Frame", nil, page)
+        ff:SetSize(590, 60)
+        ff:SetPoint("TOPLEFT", 10, -5)
+        page.filtersFrame = ff
+        
+        -- Create Quest Type filters
+        ff.cbPet = mQoL_Styles.CreateCustomCheckbox(ff, "Pet Battle")
+        ff.cbPet:SetPoint("TOPLEFT", 15, -5)
+        ff.cbPet.OnValueChanged = function(_, checked)
+            TAT.db.filterPetBattle = checked
+            TAT:RefreshUI()
         end
         
-        frame.tatBorder.top:SetColorTexture(unpack(borderColor))
-        frame.tatBorder.bottom:SetColorTexture(unpack(borderColor))
-        frame.tatBorder.left:SetColorTexture(unpack(borderColor))
-        frame.tatBorder.right:SetColorTexture(unpack(borderColor))
-    end
-end
-
--- Custom Button Factory (mQoL style)
-local function CreateTATButton(parent, text, width, height, onClick)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetSize(width or 100, height or 24)
-    
-    ApplyFlatStyle(btn, {0.15, 0.15, 0.15, 1}, COLOR_BORDER)
-    
-    btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    btn.text:SetPoint("CENTER")
-    btn.text:SetText(text or "Button")
-    btn.text:SetTextColor(0.9, 0.9, 0.9)
-    
-    btn:SetScript("OnEnter", function(self)
-        self.tatBg:SetColorTexture(0.25, 0.25, 0.25, 1)
-        self.text:SetTextColor(1, 1, 1)
-    end)
-    
-    btn:SetScript("OnLeave", function(self)
-        self.tatBg:SetColorTexture(0.15, 0.15, 0.15, 1)
-        self.text:SetTextColor(0.9, 0.9, 0.9)
-    end)
-    
-    if onClick then
-        btn:SetScript("OnClick", onClick)
-    end
-    
-    return btn
-end
-
--- Checkbox Factory utilizing UICheckButtonTemplate
-local function CreateTATCheckbox(parent, text, initialValue, onClick)
-    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    cb:SetSize(20, 20)
-    cb:SetChecked(initialValue)
-    
-    if cb.Text then
-        cb.Text:SetFontObject("GameFontHighlight")
-        cb.Text:SetText(text)
-        cb.Text:SetTextColor(0.9, 0.9, 0.9)
-        cb.Text:ClearAllPoints()
-        cb.Text:SetPoint("LEFT", cb, "RIGHT", 6, 0)
-    end
-    
-    cb:SetScript("OnClick", function(self)
-        if onClick then
-            onClick(self:GetChecked())
-        end
-    end)
-    
-    return cb
-end
-
--- Scroll Frame Factory
-local function CreateTATScrollFrame(parent, width, height)
-    local sf = CreateFrame("ScrollFrame", nil, parent)
-    sf:SetSize(width, height)
-    
-    local child = CreateFrame("Frame", nil, sf)
-    child:SetSize(width - 20, 1)
-    sf:SetScrollChild(child)
-    
-    local sb = CreateFrame("Slider", nil, sf)
-    sb:SetWidth(8)
-    sb:SetPoint("TOPRIGHT", sf, "TOPRIGHT", -2, 0)
-    sb:SetPoint("BOTTOMRIGHT", sf, "BOTTOMRIGHT", -2, 0)
-    sb:SetOrientation("VERTICAL")
-    
-    sb.bg = sb:CreateTexture(nil, "BACKGROUND")
-    sb.bg:SetAllPoints()
-    sb.bg:SetColorTexture(0.08, 0.08, 0.08, 1)
-    
-    sb.thumb = sb:CreateTexture(nil, "OVERLAY")
-    sb.thumb:SetSize(8, 30)
-    sb.thumb:SetColorTexture(0.4, 0.4, 0.4, 0.8)
-    sb:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
-    local tt = sb:GetThumbTexture()
-    tt:SetAllPoints(sb.thumb)
-    
-    sb:SetMinMaxValues(0, 0)
-    sb:SetValue(0)
-    
-    sb:SetScript("OnValueChanged", function(self, value)
-        sf:SetVerticalScroll(value)
-    end)
-    
-    sf:EnableMouseWheel(true)
-    sf:SetScript("OnMouseWheel", function(self, delta)
-        local minVal, maxVal = sb:GetMinMaxValues()
-        local cur = sb:GetValue()
-        local nextVal = cur - delta * 25
-        sb:SetValue(math.max(minVal, math.min(maxVal, nextVal)))
-    end)
-    
-    sf.sb = sb
-    sf.child = child
-    
-    function sf:UpdateScrollHeight(contentHeight)
-        local frameHeight = sf:GetHeight()
-        local scrollMax = math.max(0, contentHeight - frameHeight)
-        sb:SetMinMaxValues(0, scrollMax)
-        
-        local thumbHeight = frameHeight
-        if contentHeight > frameHeight then
-            thumbHeight = (frameHeight / contentHeight) * frameHeight
-            sb.thumb:SetHeight(math.max(15, thumbHeight))
-            sb:Show()
-        else
-            sb:Hide()
+        ff.cbPvP = mQoL_Styles.CreateCustomCheckbox(ff, "PvP")
+        ff.cbPvP:SetPoint("TOPLEFT", 160, -5)
+        ff.cbPvP.OnValueChanged = function(_, checked)
+            TAT.db.filterPvP = checked
+            TAT:RefreshUI()
         end
         
-        child:SetHeight(contentHeight)
+        ff.cbProf = mQoL_Styles.CreateCustomCheckbox(ff, "Profession")
+        ff.cbProf:SetPoint("TOPLEFT", 260, -5)
+        ff.cbProf.OnValueChanged = function(_, checked)
+            TAT.db.filterProfession = checked
+            TAT:RefreshUI()
+        end
+        
+        ff.cbNorm = mQoL_Styles.CreateCustomCheckbox(ff, "Normal")
+        ff.cbNorm:SetPoint("TOPLEFT", 400, -5)
+        ff.cbNorm.OnValueChanged = function(_, checked)
+            TAT.db.filterNormal = checked
+            TAT:RefreshUI()
+        end
+        
+        -- Create Expansion filters
+        ff.cbLegion = mQoL_Styles.CreateCustomCheckbox(ff, "Legion")
+        ff.cbLegion:SetPoint("TOPLEFT", 15, -30)
+        ff.cbLegion.OnValueChanged = function(_, checked)
+            TAT.db.filterExpansions["Legion"] = checked
+            TAT:RefreshUI()
+        end
+        
+        ff.cbBfA = mQoL_Styles.CreateCustomCheckbox(ff, "BfA")
+        ff.cbBfA:SetPoint("TOPLEFT", 90, -30)
+        ff.cbBfA.OnValueChanged = function(_, checked)
+            TAT.db.filterExpansions["BfA"] = checked
+            TAT:RefreshUI()
+        end
+        
+        ff.cbSL = mQoL_Styles.CreateCustomCheckbox(ff, "Shadowlands")
+        ff.cbSL:SetPoint("TOPLEFT", 150, -30)
+        ff.cbSL.OnValueChanged = function(_, checked)
+            TAT.db.filterExpansions["Shadowlands"] = checked
+            TAT:RefreshUI()
+        end
+        
+        ff.cbDF = mQoL_Styles.CreateCustomCheckbox(ff, "Dragonflight")
+        ff.cbDF:SetPoint("TOPLEFT", 265, -30)
+        ff.cbDF.OnValueChanged = function(_, checked)
+            TAT.db.filterExpansions["Dragonflight"] = checked
+            TAT:RefreshUI()
+        end
+        
+        ff.cbTWW = mQoL_Styles.CreateCustomCheckbox(ff, "The War Within")
+        ff.cbTWW:SetPoint("TOPLEFT", 380, -30)
+        ff.cbTWW.OnValueChanged = function(_, checked)
+            TAT.db.filterExpansions["TheWarWithin"] = checked
+            TAT:RefreshUI()
+        end
+        
+        ff.cbMidnight = mQoL_Styles.CreateCustomCheckbox(ff, "Midnight")
+        ff.cbMidnight:SetPoint("TOPLEFT", 510, -30)
+        ff.cbMidnight.OnValueChanged = function(_, checked)
+            TAT.db.filterExpansions["Midnight"] = checked
+            TAT:RefreshUI()
+        end
+        
+        -- Separator line
+        local sep = ff:CreateTexture(nil, "ARTWORK")
+        sep:SetColorTexture(0.25, 0.25, 0.25, 1)
+        sep:SetHeight(1)
+        sep:SetPoint("TOPLEFT", 5, -55)
+        sep:SetPoint("TOPRIGHT", -5, -55)
     end
     
-    return sf, child
-end
-
--- Render Needed Quests Tab content
-local function RenderQuests(parent)
-    local sf, child = CreateTATScrollFrame(parent, 590, 420)
-    sf:SetPoint("TOPLEFT", 10, -10)
+    -- Sync checkbox values
+    page.filtersFrame.cbPet:SetValue(TAT.db.filterPetBattle)
+    page.filtersFrame.cbPvP:SetValue(TAT.db.filterPvP)
+    page.filtersFrame.cbProf:SetValue(TAT.db.filterProfession)
+    page.filtersFrame.cbNorm:SetValue(TAT.db.filterNormal)
+    page.filtersFrame.cbLegion:SetValue(TAT.db.filterExpansions["Legion"])
+    page.filtersFrame.cbBfA:SetValue(TAT.db.filterExpansions["BfA"])
+    page.filtersFrame.cbSL:SetValue(TAT.db.filterExpansions["Shadowlands"])
+    page.filtersFrame.cbDF:SetValue(TAT.db.filterExpansions["Dragonflight"])
+    page.filtersFrame.cbTWW:SetValue(TAT.db.filterExpansions["TheWarWithin"])
+    page.filtersFrame.cbMidnight:SetValue(TAT.db.filterExpansions["Midnight"])
     
-    local yOffset = 0
-    
-    if #TAT.activeNeededQuests == 0 then
-        local noQuests = child:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        noQuests:SetPoint("TOPLEFT", 15, -40)
-        noQuests:SetPoint("TOPRIGHT", -15, -40)
-        noQuests:SetJustifyH("CENTER")
-        noQuests:SetText("No active needed World Quests found.\n\nMake sure your filters in the Settings tab are configured correctly.")
-        noQuests:SetTextColor(0.6, 0.6, 0.6)
-        sf:UpdateScrollHeight(100)
-        return sf
+    -- 2. Create scroll frame if it doesn't exist yet
+    if not page.scrollFrame then
+        local sf, child = mQoL_Templates.CreateScrollPanel(page, {
+            width = 590,
+            height = 360,
+        })
+        sf:ClearAllPoints()
+        sf:SetPoint("TOPLEFT", 10, -70)
+        page.scrollFrame = sf
+        page.scrollChild = child
     end
     
-    for i, q in ipairs(TAT.activeNeededQuests) do
-        local card = CreateFrame("Frame", nil, child)
-        card:SetSize(570, 72)
-        card:SetPoint("TOPLEFT", 5, -yOffset)
-        ApplyFlatStyle(card, COLOR_CARD, COLOR_BORDER)
-        
-        -- Title
-        local title = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        title:SetPoint("TOPLEFT", 12, -8)
-        title:SetText(q.title)
-        title:SetTextColor(1, 0.82, 0)
-        
-        -- Details (Zone & Time)
-        local hours = math.floor(q.timeLeft / 60)
-        local mins = q.timeLeft % 60
-        local timeStr = hours > 0 and string.format("%dh %dm remaining", hours, mins) or string.format("%dm remaining", mins)
-        
-        local details = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        details:SetPoint("TOPLEFT", 12, -26)
-        details:SetText(string.format("%s  •  %s", q.zoneName, timeStr))
-        details:SetTextColor(0.7, 0.7, 0.7)
-        
-        -- Associated Achievement / Criteria details
-        local neededFor = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        neededFor:SetPoint("TOPLEFT", 12, -46)
-        neededFor:SetText(string.format("Needed for: |cffffffff%s|r (|cff00ff00%s|r)", q.achievementName, q.criteriaString))
-        neededFor:SetTextColor(0.4, 0.8, 1)
-        
-        -- Supertrack button
-        local trackBtn = CreateTATButton(card, "Supertrack", 90, 24, function()
-            C_SuperTrack.SetSuperTrackedQuestID(q.questID)
-            UIFrameFadeOut(TAT_MainFrame, 0.15, 1, 0)
-            C_Timer.After(0.15, function()
-                TAT_MainFrame:Hide()
-            end)
-            print(string.format("|cff00ff00[TurboAchievementTracker]:|r Supertracking set to |cffffff00%s|r!", q.title))
-        end)
-        trackBtn:SetPoint("RIGHT", -12, 0)
-        
-        card:SetScript("OnEnter", function(self)
-            self.tatBg:SetColorTexture(unpack(COLOR_CARD_HOVER))
-        end)
-        card:SetScript("OnLeave", function(self)
-            self.tatBg:SetColorTexture(unpack(COLOR_CARD))
-        end)
-        
-        yOffset = yOffset + 78
+    -- Wipe existing rows/cards inside the scroll child
+    if page.rows then
+        for _, row in ipairs(page.rows) do
+            row:Hide()
+            row:SetParent(nil)
+        end
+        wipe(page.rows)
+    else
+        page.rows = {}
     end
     
-    sf:UpdateScrollHeight(yOffset + 10)
-    return sf
-end
-
--- Render Achievements Tab content
-local function RenderAchievements(parent)
-    local sf, child = CreateTATScrollFrame(parent, 590, 420)
-    sf:SetPoint("TOPLEFT", 10, -10)
-    
-    local yOffset = 0
-    
-    -- Filter out and build achievements list
+    -- 3. Filter and build achievements list
+    local filteredQuests = TAT:GetFilteredQuests()
     local progressableList = {}
-    for id, data in pairs(TAT.progressableAchievements) do
-        table.insert(progressableList, data)
+    local achievementsMap = {}
+    
+    for _, q in ipairs(filteredQuests) do
+        if not achievementsMap[q.achievementID] then
+            achievementsMap[q.achievementID] = {
+                id = q.achievementID,
+                name = q.achievementName,
+                quests = {}
+            }
+            table.insert(progressableList, achievementsMap[q.achievementID])
+        end
+        table.insert(achievementsMap[q.achievementID].quests, q)
     end
     
     -- Sort by achievement name
@@ -259,18 +162,27 @@ local function RenderAchievements(parent)
     end)
     
     if #progressableList == 0 then
-        local noAch = child:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        noAch:SetPoint("TOPLEFT", 15, -40)
-        noAch:SetPoint("TOPRIGHT", -15, -40)
-        noAch:SetJustifyH("CENTER")
-        noAch:SetText("No progressable achievements found.\n\nAll achievements matching active World Quests are either completed or filtered out.")
-        noAch:SetTextColor(0.6, 0.6, 0.6)
-        sf:UpdateScrollHeight(100)
-        return sf
+        local noAch = CreateFrame("Frame", nil, page.scrollChild)
+        noAch:SetSize(570, 100)
+        noAch:SetPoint("TOPLEFT", 5, 0)
+        table.insert(page.rows, noAch)
+        
+        local txt = noAch:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        txt:SetPoint("CENTER", 0, 0)
+        txt:SetWidth(550)
+        txt:SetJustifyH("CENTER")
+        txt:SetText("No progressable achievements found.\n\nAll achievements matching active World Quests are either completed or filtered out.")
+        txt:SetTextColor(0.6, 0.6, 0.6)
+        
+        page.scrollChild:SetHeight(100)
+        if page.scrollFrame.scrollbar and page.scrollFrame.scrollbar.UpdateScrollbar then
+            page.scrollFrame.scrollbar:UpdateScrollbar()
+        end
+        return
     end
     
+    local yOffset = 10
     for _, ach in ipairs(progressableList) do
-        -- Calculate num criteria
         local numCriteria = GetAchievementNumCriteria(ach.id)
         local completedCount = 0
         for i = 1, numCriteria do
@@ -279,185 +191,339 @@ local function RenderAchievements(parent)
         end
         
         local countText = string.format("(%d/%d criteria completed)", completedCount, numCriteria)
+        local rowHeight = 36 + (#ach.quests * 48)
         
-        local rowHeight = 36 + (#ach.quests * 30)
+        local row = CreateFrame("Frame", nil, page.scrollChild)
+        row:SetSize(550, rowHeight)
+        row:SetPoint("TOPLEFT", 10, -yOffset)
+        mQoL_Templates.SetBackdrop(row, {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        }, COLOR_CARD, COLOR_BORDER)
+        table.insert(page.rows, row)
         
-        local row = CreateFrame("Frame", nil, child)
-        row:SetSize(570, rowHeight)
-        row:SetPoint("TOPLEFT", 5, -yOffset)
-        ApplyFlatStyle(row, COLOR_CARD, COLOR_BORDER)
+        row:SetScript("OnEnter", function(self)
+            self.mQoL_bg:SetColorTexture(unpack(COLOR_CARD_HOVER))
+        end)
+        row:SetScript("OnLeave", function(self)
+            self.mQoL_bg:SetColorTexture(unpack(COLOR_CARD))
+        end)
         
         local title = row:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
         title:SetPoint("TOPLEFT", 12, -8)
         title:SetText(string.format("%s  |cff888888%s|r", ach.name, countText))
         title:SetTextColor(1, 0.82, 0)
         
-        -- Draw quest headers underneath this achievement
         local subY = -30
         for _, q in ipairs(ach.quests) do
             local subRow = CreateFrame("Frame", nil, row)
-            subRow:SetSize(550, 26)
+            subRow:SetSize(530, 42)
             subRow:SetPoint("TOPLEFT", 10, subY)
-            ApplyFlatStyle(subRow, {0.07, 0.07, 0.07, 1}, COLOR_BORDER)
+            mQoL_Templates.SetBackdrop(subRow, {
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            }, {0.07, 0.07, 0.07, 1}, COLOR_BORDER)
             
             local qTitle = subRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            qTitle:SetPoint("LEFT", 8, 0)
-            qTitle:SetText(string.format("%s (%s) — Needs criteria: |cff00ff00%s|r", q.title, q.zoneName, q.criteriaString))
+            qTitle:SetPoint("TOPLEFT", 8, -5)
+            qTitle:SetText(string.format("%s (%s — %s)", q.title, q.zoneName, q.expansion or "Other"))
             
-            local trackBtn = CreateTATButton(subRow, "Supertrack", 75, 18, function()
+            local qCriteria = subRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            qCriteria:SetPoint("BOTTOMLEFT", 8, 5)
+            qCriteria:SetText(string.format("|cff888888Needs criteria:|r |cff00ff00%s|r", q.criteriaString))
+            
+            local trackBtn = mQoL_Styles.CreateCustomButton(subRow, "Track", 75, 22)
+            trackBtn:SetScript("OnClick", function()
                 C_SuperTrack.SetSuperTrackedQuestID(q.questID)
-                UIFrameFadeOut(TAT_MainFrame, 0.15, 1, 0)
+                UIFrameFadeOut(mainFrame, 0.15, 1, 0)
                 C_Timer.After(0.15, function()
-                    TAT_MainFrame:Hide()
+                    mainFrame:Hide()
                 end)
                 print(string.format("|cff00ff00[TurboAchievementTracker]:|r Supertracking set to |cffffff00%s|r!", q.title))
             end)
             trackBtn:SetPoint("RIGHT", -6, 0)
             
-            subY = subY - 30
+            subY = subY - 48
         end
         
         yOffset = yOffset + rowHeight + 10
     end
     
-    sf:UpdateScrollHeight(yOffset + 10)
-    return sf
+    page.scrollChild:SetHeight(yOffset + 10)
+    if page.scrollFrame.scrollbar and page.scrollFrame.scrollbar.UpdateScrollbar then
+        page.scrollFrame.scrollbar:UpdateScrollbar()
+    end
 end
 
--- Render Settings & Filters Tab content
-local function RenderSettings(parent)
-    local sf, child = CreateTATScrollFrame(parent, 590, 420)
-    sf:SetPoint("TOPLEFT", 10, -10)
+-- Helper to draw a thin divider line between settings options
+local function AddSeparator(parent, yOffset)
+    local sep = parent:CreateTexture(nil, "ARTWORK")
+    sep:SetColorTexture(1, 1, 1, 0.15)
+    sep:SetPoint("TOPLEFT", parent, "TOPLEFT", 15, -yOffset)
+    sep:SetSize(530, 1)
+    return yOffset + 10
+end
+
+-- Helper to create setting option rows similar to mQoL
+local function AddOptionRow(parent, yOffset, name, controlType, controlParams, extra, applyFunc)
+    local leftMargin = 15
+    local labelWidth = 280
+    local spacing = 10
+    local rightMargin = 15
+    local rowWidth = 550
+    local rowHeight = 30
+    local sliderInputSpacing = 8
     
-    local yOffset = 10
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetSize(rowWidth, rowHeight)
+    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, -yOffset)
     
-    -- Group 1: General Settings
-    local generalLabel = child:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    generalLabel:SetPoint("TOPLEFT", 15, -yOffset)
-    generalLabel:SetText("General Settings")
-    generalLabel:SetTextColor(1, 0.82, 0)
+    -- Label
+    local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("LEFT", row, "LEFT", leftMargin, 0)
+    label:SetSize(labelWidth, rowHeight)
+    label:SetJustifyH("LEFT")
+    label:SetJustifyV("MIDDLE")
+    label:SetText(name)
+    label:SetTextColor(1, 0.82, 0)
     
-    yOffset = yOffset + 25
-    
-    local cbReminder = CreateTATCheckbox(child, "Show login chat reminder of available needed quests", TAT.db.showLoginReminder, function(checked)
-        TAT.db.showLoginReminder = checked
-    end)
-    cbReminder:SetPoint("TOPLEFT", 25, -yOffset)
-    
-    yOffset = yOffset + 25
-    
-    local cbDebug = CreateTATCheckbox(child, "Enable debug print to chat on scan", TAT.db.enableDebug, function(checked)
-        TAT.db.enableDebug = checked
-        TAT:RunScan()
-    end)
-    cbDebug:SetPoint("TOPLEFT", 25, -yOffset)
-    
-    yOffset = yOffset + 30
-    
-    -- Window scale slider
-    local scaleLabel = child:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    scaleLabel:SetPoint("TOPLEFT", 25, -yOffset)
-    scaleLabel:SetText("UI Scale:")
-    
-    local slider = CreateFrame("Slider", "TAT_ScaleSlider", child, "UISliderTemplateWithLabels")
-    slider:SetPoint("LEFT", scaleLabel, "RIGHT", 15, 0)
-    slider:SetWidth(150)
-    slider:SetMinMaxValues(0.7, 1.5)
-    slider:SetValueStep(0.05)
-    slider:SetValue(TAT.db.ui.scale)
-    
-    if slider.Low then
-        slider.Low:SetText("0.7")
-    elseif _G["TAT_ScaleSliderLow"] then
-        _G["TAT_ScaleSliderLow"]:SetText("0.7")
+    local uiAreaWidth = rowWidth - leftMargin - labelWidth - spacing - rightMargin
+    if extra and #extra > 0 then
+        for _, frame in ipairs(extra) do
+            uiAreaWidth = uiAreaWidth - frame:GetWidth() - sliderInputSpacing
+        end
+    end
+    if applyFunc then
+        local btnWidth = controlParams.applyWidth or 50
+        uiAreaWidth = uiAreaWidth - btnWidth - sliderInputSpacing
     end
     
-    if slider.High then
-        slider.High:SetText("1.5")
-    elseif _G["TAT_ScaleSliderHigh"] then
-        _G["TAT_ScaleSliderHigh"]:SetText("1.5")
+    local uiArea = CreateFrame("Frame", nil, row)
+    uiArea:SetPoint("LEFT", label, "RIGHT", spacing, 0)
+    uiArea:SetSize(uiAreaWidth, rowHeight)
+    
+    local control
+    local contentOffset = 0
+    
+    if controlType == "checkbox" then
+        control = mQoL_Styles.CreateCustomCheckbox(uiArea, "")
+        control:SetSize(20, 20)
+        control:SetPoint("LEFT", uiArea, "LEFT", 0, 0)
+        if controlParams.value ~= nil then
+            control:SetValue(controlParams.value)
+        end
+        if controlParams.onValueChanged then
+            control.OnValueChanged = controlParams.onValueChanged
+        end
+        
+    elseif controlType == "slider" then
+        local sliderRowHeight = 45
+        row:SetHeight(sliderRowHeight)
+        uiArea:SetHeight(sliderRowHeight)
+        contentOffset = (sliderRowHeight - rowHeight) / 2
+        
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", row, "LEFT", leftMargin, contentOffset)
+        
+        control = mQoL_Styles.CreateCustomSlider(
+            uiArea,
+            "",
+            controlParams.min,
+            controlParams.max,
+            controlParams.step,
+            uiAreaWidth,
+            5
+        )
+        control:SetPoint("LEFT", uiArea, "LEFT", 0, 0)
+        
+        if controlParams.value then
+            control:SetValue(controlParams.value)
+        end
+        
+        if controlParams.onValueChanged then
+            control:SetScript("OnValueChanged", function(self)
+                self:UpdateThumb()
+                local val = self:GetValue()
+                controlParams.onValueChanged(self, val)
+            end)
+        end
+        
+        if extra then
+            local prev = control
+            for _, frame in ipairs(extra) do
+                frame:SetParent(uiArea)
+                frame:ClearAllPoints()
+                frame:SetPoint("LEFT", prev, "RIGHT", sliderInputSpacing, 0)
+                prev = frame
+            end
+        end
     end
     
-    slider:SetScript("OnValueChanged", function(self, value)
-        TAT.db.ui.scale = value
-        mainFrame:SetScale(value)
-    end)
-    
-    yOffset = yOffset + 45
-    
-    -- Group 2: World Quest Type Filters
-    local typeLabel = child:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    typeLabel:SetPoint("TOPLEFT", 15, -yOffset)
-    typeLabel:SetText("Quest Type Filters")
-    typeLabel:SetTextColor(1, 0.82, 0)
-    
-    yOffset = yOffset + 25
-    
-    local cbPet = CreateTATCheckbox(child, "Enable Pet Battle World Quests", TAT.db.filterPetBattle, function(checked)
-        TAT.db.filterPetBattle = checked
-        TAT:RunScan()
-    end)
-    cbPet:SetPoint("TOPLEFT", 25, -yOffset)
-    
-    yOffset = yOffset + 25
-    
-    local cbPvP = CreateTATCheckbox(child, "Enable PvP World Quests", TAT.db.filterPvP, function(checked)
-        TAT.db.filterPvP = checked
-        TAT:RunScan()
-    end)
-    cbPvP:SetPoint("TOPLEFT", 25, -yOffset)
-    
-    yOffset = yOffset + 25
-    
-    local cbProf = CreateTATCheckbox(child, "Enable Profession World Quests", TAT.db.filterProfession, function(checked)
-        TAT.db.filterProfession = checked
-        TAT:RunScan()
-    end)
-    cbProf:SetPoint("TOPLEFT", 25, -yOffset)
-    
-    yOffset = yOffset + 25
-    
-    local cbNorm = CreateTATCheckbox(child, "Enable Normal World Quests", TAT.db.filterNormal, function(checked)
-        TAT.db.filterNormal = checked
-        TAT:RunScan()
-    end)
-    cbNorm:SetPoint("TOPLEFT", 25, -yOffset)
-    
-    yOffset = yOffset + 45
-    
-    -- Group 3: Expansion Filters
-    local expLabel = child:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    expLabel:SetPoint("TOPLEFT", 15, -yOffset)
-    expLabel:SetText("Expansion Filters")
-    expLabel:SetTextColor(1, 0.82, 0)
-    
-    yOffset = yOffset + 25
-    
-    local expansions = {"Legion", "BfA", "Shadowlands", "Dragonflight", "The War Within"}
-    local expKeys = {["Legion"]="Legion", ["BfA"]="BfA", ["Shadowlands"]="Shadowlands", ["Dragonflight"]="Dragonflight", ["The War Within"]="TheWarWithin"}
-    
-    for _, expName in ipairs(expansions) do
-        local key = expKeys[expName]
-        local cbExp = CreateTATCheckbox(child, "Scan " .. expName .. " Zones", TAT.db.filterExpansions[key], function(checked)
-            TAT.db.filterExpansions[key] = checked
-            TAT:RunScan()
+    if applyFunc then
+        local customLabel = controlParams.applyLabel or "Apply"
+        local customWidth = controlParams.applyWidth or 50
+        
+        local applyBtn = mQoL_Styles.CreateCustomButton(row, customLabel)
+        applyBtn:SetSize(customWidth, 20)
+        applyBtn:SetPoint("RIGHT", row, "RIGHT", -rightMargin, contentOffset)
+        
+        applyBtn:SetScript("OnClick", function()
+            applyFunc()
         end)
-        cbExp:SetPoint("TOPLEFT", 25, -yOffset)
-        yOffset = yOffset + 25
+        row.applyBtn = applyBtn
     end
     
-    yOffset = yOffset + 20
+    return row, control
+end
+
+-- Helper to update the settings page controls
+local function UpdateSettingsPage()
+    local page = mainFrame.settingsPage
+    if not page then return end
     
-    local scanBtn = CreateTATButton(child, "Run Manual Scan", 200, 30, function()
-        TAT:RunScan(true)
-        print("|cff00ff00[TurboAchievementTracker]:|r Manual scan completed successfully.")
-    end)
-    scanBtn:SetPoint("TOPLEFT", 20, -yOffset)
+    if not page.scrollFrame then
+        local sf, child = mQoL_Templates.CreateScrollPanel(page, {
+            width = 590,
+            height = 420,
+        })
+        sf:ClearAllPoints()
+        sf:SetPoint("TOPLEFT", 10, -10)
+        page.scrollFrame = sf
+        page.scrollChild = child
+        
+        local yOffset = 15
+        
+        -- General Settings Title
+        local generalLabel = child:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        generalLabel:SetPoint("TOPLEFT", 15, -yOffset)
+        generalLabel:SetText("General Settings")
+        generalLabel:SetTextColor(1, 0.82, 0)
+        
+        yOffset = yOffset + 25
+        
+        -- 1. Minimap Option Row
+        local rowMinimap, cbMinimap = AddOptionRow(child, yOffset, "Hide Minimap Button", "checkbox", {
+            value = TAT.db.minimap.hide,
+            onValueChanged = function(_, checked)
+                TAT.db.minimap.hide = checked
+                TAT:UpdateMinimapButtonVisibility()
+            end
+        })
+        page.cbMinimap = cbMinimap
+        yOffset = yOffset + rowMinimap:GetHeight() + 8
+        yOffset = AddSeparator(child, yOffset)
+        
+        -- 2. Login Reminder Option Row
+        local rowReminder, cbReminder = AddOptionRow(child, yOffset, "Show login chat reminder of needed quests", "checkbox", {
+            value = TAT.db.showLoginReminder,
+            onValueChanged = function(_, checked)
+                TAT.db.showLoginReminder = checked
+            end
+        })
+        page.cbReminder = cbReminder
+        yOffset = yOffset + rowReminder:GetHeight() + 8
+        yOffset = AddSeparator(child, yOffset)
+        
+        -- 3. Debug Prints Option Row
+        local rowDebug, cbDebug = AddOptionRow(child, yOffset, "Enable debug print to chat on scan", "checkbox", {
+            value = TAT.db.enableDebug,
+            onValueChanged = function(_, checked)
+                TAT.db.enableDebug = checked
+                TAT:RunScan()
+            end
+        })
+        page.cbDebug = cbDebug
+        yOffset = yOffset + rowDebug:GetHeight() + 8
+        yOffset = AddSeparator(child, yOffset)
+        
+        -- 4. UI Scale Slider Row
+        -- EditBox for scale input/display
+        local scaleEditBox = mQoL_Styles.CreateCustomInputBox(child, 40, 20)
+        scaleEditBox.bg = scaleEditBox:CreateTexture(nil, "BACKGROUND")
+        scaleEditBox.bg:SetAllPoints()
+        scaleEditBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        scaleEditBox.border = mQoL_Templates.CreateFrameBorder(scaleEditBox, 1, {0.25, 0.25, 0.25, 1})
+        
+        -- Filter input to allow only valid numbers
+        scaleEditBox:SetScript("OnTextChanged", function(self)
+            local text = self:GetText()
+            local cleanText = text:gsub("[^0-9.]", "")
+            local firstDot = cleanText:find("%.")
+            if firstDot then
+                local before = cleanText:sub(1, firstDot)
+                local after = cleanText:sub(firstDot + 1):gsub("%.", "")
+                cleanText = before .. after
+            end
+            if cleanText ~= text then
+                self:SetText(cleanText)
+            end
+        end)
+        
+        local scaleSlider
+        local function ApplyScaleValue(val)
+            val = tonumber(val)
+            if val then
+                val = math.max(0.7, math.min(1.5, val))
+                val = math.floor(val / 0.05 + 0.5) * 0.05 -- Snap to step 0.05
+                TAT.db.ui.scale = val
+                scaleSlider:SetValue(val)
+                scaleSlider:UpdateThumb()
+                scaleEditBox:SetText(string.format("%.2f", val))
+                mainFrame:SetScale(val)
+            else
+                scaleEditBox:SetText(string.format("%.2f", TAT.db.ui.scale))
+            end
+        end
+        
+        scaleEditBox:SetScript("OnEnterPressed", function(self)
+            ApplyScaleValue(self:GetText())
+            self:ClearFocus()
+        end)
+        
+        local rowScale, slider = AddOptionRow(child, yOffset, "UI Scale", "slider", {
+            value = TAT.db.ui.scale,
+            min = 0.7,
+            max = 1.5,
+            step = 0.05,
+            applyLabel = "Apply",
+            applyWidth = 50,
+            onValueChanged = function(_, value)
+                scaleEditBox:SetText(string.format("%.2f", value))
+            end
+        }, {scaleEditBox}, function()
+            ApplyScaleValue(scaleEditBox:GetText())
+        end)
+        
+        scaleSlider = slider
+        page.scaleSlider = slider
+        page.scaleEditBox = scaleEditBox
+        
+        yOffset = yOffset + rowScale:GetHeight() + 15
+        
+        -- 5. Manual Scan Button
+        local scanBtn = mQoL_Styles.CreateCustomButton(child, "Run Manual Scan", 200, 30)
+        scanBtn:SetPoint("TOP", child, "TOP", 0, -yOffset)
+        scanBtn:SetScript("OnClick", function()
+            TAT:RunScan(true)
+            print("|cff00ff00[TurboAchievementTracker]:|r Manual scan completed successfully.")
+        end)
+        page.scanBtn = scanBtn
+        
+        yOffset = yOffset + 45
+        child:SetHeight(yOffset)
+    end
     
-    yOffset = yOffset + 50
+    -- Sync values
+    page.cbMinimap:SetValue(TAT.db.minimap.hide)
+    page.cbReminder:SetValue(TAT.db.showLoginReminder)
+    page.cbDebug:SetValue(TAT.db.enableDebug)
+    page.scaleSlider:SetValue(TAT.db.ui.scale)
+    page.scaleSlider:UpdateThumb()
+    page.scaleEditBox:SetText(string.format("%.2f", TAT.db.ui.scale))
     
-    sf:UpdateScrollHeight(yOffset)
-    return sf
+    if page.scrollFrame.scrollbar and page.scrollFrame.scrollbar.UpdateScrollbar then
+        page.scrollFrame.scrollbar:UpdateScrollbar()
+    end
 end
 
 -- Toggle active tab
@@ -466,30 +532,45 @@ local function SelectTab(tab)
     TAT:RefreshUI()
 end
 
--- Refreshes the active content area
+-- Refreshes the active page
 function TAT:RefreshUI()
     if not mainFrame or not mainFrame:IsShown() then return end
     
-    if mainFrame.contentArea then
-        mainFrame.contentArea:Hide()
-        mainFrame.contentArea:SetParent(nil)
-    end
+    mainFrame.achievementsPage:Hide()
+    mainFrame.settingsPage:Hide()
     
-    local contentArea = CreateFrame("Frame", nil, mainFrame)
-    contentArea:SetSize(610, 440)
-    contentArea:SetPoint("TOPLEFT", mainFrame.sidebar, "TOPRIGHT", 10, -10)
-    mainFrame.contentArea = contentArea
-    
-    mainFrame.btnQuests.tatBg:SetColorTexture(unpack(activeTab == "quests" and {0.2, 0.2, 0.2, 1} or {0.1, 0.1, 0.1, 1}))
-    mainFrame.btnAchievements.tatBg:SetColorTexture(unpack(activeTab == "achievements" and {0.2, 0.2, 0.2, 1} or {0.1, 0.1, 0.1, 1}))
-    mainFrame.btnSettings.tatBg:SetColorTexture(unpack(activeTab == "settings" and {0.2, 0.2, 0.2, 1} or {0.1, 0.1, 0.1, 1}))
-    
-    if activeTab == "quests" then
-        RenderQuests(contentArea)
-    elseif activeTab == "achievements" then
-        RenderAchievements(contentArea)
+    if activeTab == "achievements" then
+        mQoL_Templates.SetBackdrop(mainFrame.btnAchievements, {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        }, {0.18, 0.18, 0.18, 1}, {1, 0.82, 0, 1})
+        
+        mQoL_Templates.SetBackdrop(mainFrame.btnSettings, {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        }, {0.1, 0.1, 0.1, 1}, COLOR_BORDER)
+        
+        mainFrame.btnAchievements.text:SetTextColor(1, 0.82, 0)
+        mainFrame.btnSettings.text:SetTextColor(0.7, 0.7, 0.7)
+        
+        mainFrame.achievementsPage:Show()
+        UpdateAchievementsPage()
     elseif activeTab == "settings" then
-        RenderSettings(contentArea)
+        mQoL_Templates.SetBackdrop(mainFrame.btnAchievements, {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        }, {0.1, 0.1, 0.1, 1}, COLOR_BORDER)
+        
+        mQoL_Templates.SetBackdrop(mainFrame.btnSettings, {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        }, {0.18, 0.18, 0.18, 1}, {1, 0.82, 0, 1})
+        
+        mainFrame.btnAchievements.text:SetTextColor(0.7, 0.7, 0.7)
+        mainFrame.btnSettings.text:SetTextColor(1, 0.82, 0)
+        
+        mainFrame.settingsPage:Show()
+        UpdateSettingsPage()
     end
 end
 
@@ -534,14 +615,20 @@ function TAT:CreateMainFrame()
     f:SetFrameStrata("DIALOG")
     f:Hide()
     
-    ApplyFlatStyle(f, COLOR_BG, COLOR_BORDER)
+    mQoL_Templates.SetBackdrop(f, {
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    }, COLOR_BG, COLOR_BORDER)
     
     -- Title Bar
     local titleBar = CreateFrame("Frame", nil, f)
     titleBar:SetHeight(30)
     titleBar:SetPoint("TOPLEFT", 0, 0)
     titleBar:SetPoint("TOPRIGHT", 0, 0)
-    ApplyFlatStyle(titleBar, COLOR_TITLE, COLOR_BORDER)
+    mQoL_Templates.SetBackdrop(titleBar, {
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    }, COLOR_TITLE, COLOR_BORDER)
     
     titleBar:EnableMouse(true)
     titleBar:RegisterForDrag("LeftButton")
@@ -561,29 +648,22 @@ function TAT:CreateMainFrame()
     titleText:SetTextColor(1, 0.82, 0)
     
     -- Close button
-    local closeBtn = CreateFrame("Button", nil, titleBar)
-    closeBtn:SetSize(20, 20)
-    closeBtn:SetPoint("RIGHT", -8, 0)
-    
-    closeBtn.text = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    closeBtn.text:SetPoint("CENTER")
-    closeBtn.text:SetText("X")
-    closeBtn.text:SetTextColor(1, 0.2, 0.2)
-    
-    closeBtn:SetScript("OnEnter", function(self) self.text:SetTextColor(1, 0.5, 0.5) end)
-    closeBtn:SetScript("OnLeave", function(self) self.text:SetTextColor(1, 0.2, 0.2) end)
-    closeBtn:SetScript("OnClick", function()
+    local closeBtn = mQoL_Templates.CreateCloseButton(titleBar, 20, function()
         UIFrameFadeOut(f, 0.15, 1, 0)
         C_Timer.After(0.15, function()
             f:Hide()
         end)
     end)
+    closeBtn:SetPoint("RIGHT", -8, 0)
     
     -- Sidebar
     local sidebar = CreateFrame("Frame", "TAT_Sidebar", f)
     sidebar:SetSize(180, 450)
     sidebar:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, 0)
-    ApplyFlatStyle(sidebar, COLOR_SIDEBAR, COLOR_BORDER)
+    mQoL_Templates.SetBackdrop(sidebar, {
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    }, COLOR_SIDEBAR, COLOR_BORDER)
     f.sidebar = sidebar
     
     -- Sidebar navigation buttons
@@ -591,7 +671,10 @@ function TAT:CreateMainFrame()
         local btn = CreateFrame("Button", nil, sidebar)
         btn:SetSize(160, 32)
         btn:SetPoint("TOP", 0, yOffset)
-        ApplyFlatStyle(btn, {0.1, 0.1, 0.1, 1}, COLOR_BORDER)
+        mQoL_Templates.SetBackdrop(btn, {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        }, {0.1, 0.1, 0.1, 1}, COLOR_BORDER)
         
         btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         btn.text:SetPoint("LEFT", 12, 0)
@@ -600,26 +683,39 @@ function TAT:CreateMainFrame()
         btn:SetScript("OnClick", function() SelectTab(tabName) end)
         btn:SetScript("OnEnter", function(self)
             if activeTab ~= tabName then
-                self.tatBg:SetColorTexture(0.15, 0.15, 0.15, 1)
+                self.mQoL_bg:SetColorTexture(0.15, 0.15, 0.15, 1)
             end
         end)
         btn:SetScript("OnLeave", function(self)
             if activeTab ~= tabName then
-                self.tatBg:SetColorTexture(0.1, 0.1, 0.1, 1)
+                self.mQoL_bg:SetColorTexture(0.1, 0.1, 0.1, 1)
             end
         end)
         
         return btn
     end
     
-    f.btnQuests = CreateNavButton("Needed Quests", -20, "quests")
-    f.btnAchievements = CreateNavButton("Achievements", -60, "achievements")
-    f.btnSettings = CreateNavButton("Filters & Settings", -100, "settings")
+    f.btnAchievements = CreateNavButton("Achievements", -20, "achievements")
+    f.btnSettings = CreateNavButton("Settings", -60, "settings")
     
     -- Footer/Credits
     local credits = sidebar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     credits:SetPoint("BOTTOM", 0, 10)
-    credits:SetText("v1.1.0 Mainline\nby Antigravity")
+    credits:SetText("v1.2.0 Mainline\nby Mentiuszen")
+    
+    -- Page Containers
+    local pageContainer = CreateFrame("Frame", nil, f)
+    pageContainer:SetSize(610, 440)
+    pageContainer:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 10, -10)
+    f.pageContainer = pageContainer
+    
+    f.achievementsPage = CreateFrame("Frame", nil, pageContainer)
+    f.achievementsPage:SetAllPoints()
+    f.achievementsPage:Hide()
+    
+    f.settingsPage = CreateFrame("Frame", nil, pageContainer)
+    f.settingsPage:SetAllPoints()
+    f.settingsPage:Hide()
 end
 
 -- Slash commands

@@ -3,6 +3,7 @@ TAT.zoneMapIDs = {}
 TAT.criteriaLookup = {}
 TAT.activeNeededQuests = {}
 TAT.progressableAchievements = {}
+TAT.scannedNeededQuests = {}
 
 local eventFrame = CreateFrame("Frame")
 
@@ -12,7 +13,9 @@ local parentToExpansion = {
     [875] = "BfA", [876] = "BfA",
     [1550] = "Shadowlands",
     [1978] = "Dragonflight",
-    [2274] = "The War Within"
+    [2274] = "The War Within",
+    [2393] = "Midnight", [2395] = "Midnight", [2424] = "Midnight", [2437] = "Midnight",
+    [13] = "Midnight" -- Eastern Kingdoms (Quel'Thalas revamp in Midnight)
 }
 
 local mapExpansionCache = {}
@@ -163,31 +166,9 @@ function TAT:RunScan(force)
     end
     
     -- Rebuild criteria lookup of incomplete achievements if forced or not built yet
-    local success = TAT:RebuildCriteriaLookup(force)
-    if not success then
-        -- Achievements database is not loaded yet, schedule a retry
-        if not TAT.achRetryCount then TAT.achRetryCount = 0 end
-        if TAT.achRetryCount < 10 then
-            TAT.achRetryCount = TAT.achRetryCount + 1
-            if TAT.db.enableDebug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff8855ff[TAT Debug]:|r Achievement data not ready. Retrying scan in 2s...")
-            end
-            if TAT.achRetryTimer then TAT.achRetryTimer:Cancel() end
-            TAT.achRetryTimer = C_Timer.NewTimer(2.0, function()
-                TAT:RunScan(force)
-            end)
-            return
-        end
-    else
-        TAT.achRetryCount = 0
-        TAT.initialScanDone = true
-        if eventFrame then
-            eventFrame:UnregisterEvent("RECEIVED_ACHIEVEMENT_LIST")
-        end
-    end
+    TAT:RebuildCriteriaLookup(force)
 
-    wipe(TAT.activeNeededQuests)
-    wipe(TAT.progressableAchievements)
+    wipe(TAT.scannedNeededQuests)
     
     local needsRetry = false
     local processedQuests = {}
@@ -209,8 +190,8 @@ function TAT:RunScan(force)
     for mapID in pairs(mapsToScan) do
         local expansion = GetMapExpansion(mapID)
         
-        -- Filter by expansion selection (skip legacy zones classified as "Other" which don't have WQs)
-        if expansion ~= "Other" and TAT.db.filterExpansions[expansion] then
+        -- Scan all expansions matching World Quests (skip legacy "Other" zones)
+        if expansion ~= "Other" then
             mapsScannedCount = mapsScannedCount + 1
             local quests = getQuests(mapID)
             if quests then
@@ -232,46 +213,31 @@ function TAT:RunScan(force)
                             local isProfession = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.Professions
                             local isNormal = not isPetBattle and not isPvP and not isProfession
                             
-                            -- Evaluate filter rules
-                            local passFilter = false
-                            if TAT.db.filterPetBattle and isPetBattle then passFilter = true end
-                            if TAT.db.filterPvP and isPvP then passFilter = true end
-                            if TAT.db.filterProfession and isProfession then passFilter = true end
-                            if TAT.db.filterNormal and isNormal then passFilter = true end
-                            
-                            if passFilter then
-                                -- Compare quest title against missing criteria
-                                for critLower, critInfo in pairs(TAT.criteriaLookup) do
-                                    if IsMatch(title, critInfo.criteriaString) then
-                                        local timeLeft = C_TaskQuest.GetQuestTimeLeftMinutes(questID) or 0
-                                        local mapInfo = C_Map.GetMapInfo(mapID)
-                                        local zoneName = mapInfo and mapInfo.name or "Unknown Zone"
-                                        
-                                        local questData = {
-                                            questID = questID,
-                                            title = title,
-                                            zoneName = zoneName,
-                                            mapID = mapID,
-                                            timeLeft = timeLeft,
-                                            achievementID = critInfo.achievementID,
-                                            achievementName = critInfo.achievementName,
-                                            criteriaString = critInfo.criteriaString,
-                                            isPetBattle = isPetBattle
-                                        }
-                                        
-                                        table.insert(TAT.activeNeededQuests, questData)
-                                        
-                                        -- Track achievements progressable right now
-                                        if not TAT.progressableAchievements[critInfo.achievementID] then
-                                            TAT.progressableAchievements[critInfo.achievementID] = {
-                                                id = critInfo.achievementID,
-                                                name = critInfo.achievementName,
-                                                quests = {}
-                                            }
-                                        end
-                                        table.insert(TAT.progressableAchievements[critInfo.achievementID].quests, questData)
-                                        break
-                                    end
+                            -- Compare quest title against missing criteria
+                            for critLower, critInfo in pairs(TAT.criteriaLookup) do
+                                if IsMatch(title, critInfo.criteriaString) then
+                                    local timeLeft = C_TaskQuest.GetQuestTimeLeftMinutes(questID) or 0
+                                    local mapInfo = C_Map.GetMapInfo(mapID)
+                                    local zoneName = mapInfo and mapInfo.name or "Unknown Zone"
+                                    
+                                    local questData = {
+                                        questID = questID,
+                                        title = title,
+                                        zoneName = zoneName,
+                                        mapID = mapID,
+                                        timeLeft = timeLeft,
+                                        achievementID = critInfo.achievementID,
+                                        achievementName = critInfo.achievementName,
+                                        criteriaString = critInfo.criteriaString,
+                                        isPetBattle = isPetBattle,
+                                        isPvP = isPvP,
+                                        isProfession = isProfession,
+                                        isNormal = isNormal,
+                                        expansion = expansion
+                                    }
+                                    
+                                    table.insert(TAT.scannedNeededQuests, questData)
+                                    break
                                 end
                             end
                         end
@@ -289,14 +255,16 @@ function TAT:RunScan(force)
     -- Print debug information to chat if enabled
     if TAT.db.enableDebug then
         local colorPrefix = "|cff8855ff[TAT Debug]:|r "
+        local filteredQuests = TAT:GetFilteredQuests()
         local msg = string.format(
-            "%sScanned %d achievements (%d criteria lookup). Scanned %d zones, found %d active WQs. Matched %d needed WQs!",
+            "%sScanned %d achievements (%d criteria lookup). Scanned %d zones, found %d active WQs. Matched %d (showing %d after filters) needed WQs!",
             colorPrefix,
             TAT.lastScanStats and TAT.lastScanStats.achievements or 0,
             TAT.lastScanStats and TAT.lastScanStats.criteria or 0,
             mapsScannedCount,
             questsFoundCount,
-            #TAT.activeNeededQuests
+            #TAT.scannedNeededQuests,
+            #filteredQuests
         )
         DEFAULT_CHAT_FRAME:AddMessage(msg)
     end
@@ -304,7 +272,8 @@ function TAT:RunScan(force)
     -- Print reminder on the first successful scan of the session (after player fully enters world)
     if hasEnteredWorld and TAT.db.showLoginReminder and not hasPrintedReminder then
         hasPrintedReminder = true
-        local neededCount = #TAT.activeNeededQuests
+        local filteredQuests = TAT:GetFilteredQuests()
+        local neededCount = #filteredQuests
         local colorPrefix = "|cff00ff00[TurboAchievementTracker]:|r "
         local msg
         if neededCount > 0 then
@@ -332,6 +301,30 @@ function TAT:RunScan(force)
     end
 end
 
+-- Helper to filter quests in-memory without rescanning
+function TAT:GetFilteredQuests()
+    local filtered = {}
+    if not TAT.scannedNeededQuests then return filtered end
+    for _, q in ipairs(TAT.scannedNeededQuests) do
+        local passType = false
+        if TAT.db.filterPetBattle and q.isPetBattle then passType = true end
+        if TAT.db.filterPvP and q.isPvP then passType = true end
+        if TAT.db.filterProfession and q.isProfession then passType = true end
+        if TAT.db.filterNormal and q.isNormal then passType = true end
+        
+        local passExp = false
+        local expansion = GetMapExpansion(q.mapID)
+        if expansion == "Other" or TAT.db.filterExpansions[expansion] then
+            passExp = true
+        end
+        
+        if passType and passExp then
+            table.insert(filtered, q)
+        end
+    end
+    return filtered
+end
+
 -- Hook database loaded
 function TAT:OnDatabaseLoaded()
     TAT:RunScan()
@@ -345,10 +338,12 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         hasEnteredWorld = true
         if not TAT.initialScanDone then
+            TAT.initialScanDone = true
             TAT:RunScan()
         end
     elseif event == "RECEIVED_ACHIEVEMENT_LIST" then
         if not TAT.initialScanDone then
+            TAT.initialScanDone = true
             -- Cancel any pending achievement retry timers and scan immediately
             if TAT.achRetryTimer then
                 TAT.achRetryTimer:Cancel()
