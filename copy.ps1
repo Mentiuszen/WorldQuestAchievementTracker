@@ -27,7 +27,7 @@ function Test-FileNeedsUpdate {
     return $sourceHash -ne $destinationHash
 }
 
-Write-Host "=== Syncing TurboAchievementTracker ===" -ForegroundColor Cyan
+Write-Host "==== Syncing TurboAchievementTracker ====" -ForegroundColor Cyan
 
 if (-not (Test-Path -LiteralPath $Destination)) {
     Write-Host "Creating destination directory: $Destination"

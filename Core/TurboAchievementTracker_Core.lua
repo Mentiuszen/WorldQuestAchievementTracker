@@ -4,6 +4,8 @@ TAT.criteriaLookup = {}
 TAT.activeNeededQuests = {}
 TAT.progressableAchievements = {}
 
+local eventFrame = CreateFrame("Frame")
+
 -- Parent Map IDs mapped to Expansion Names
 local parentToExpansion = {
     [619] = "Legion", [903] = "Legion",
@@ -178,6 +180,10 @@ function TAT:RunScan(force)
         end
     else
         TAT.achRetryCount = 0
+        TAT.initialScanDone = true
+        if eventFrame then
+            eventFrame:UnregisterEvent("RECEIVED_ACHIEVEMENT_LIST")
+        end
     end
 
     wipe(TAT.activeNeededQuests)
@@ -331,47 +337,24 @@ function TAT:OnDatabaseLoaded()
     TAT:RunScan()
 end
 
--- Main event tracking frame
-local eventFrame = CreateFrame("Frame")
+-- Main event tracking frame setup (only for initial login scan)
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
-eventFrame:RegisterEvent("WORLD_QUEST_COMPLETED_BY_SPELL")
 eventFrame:RegisterEvent("RECEIVED_ACHIEVEMENT_LIST")
-eventFrame:RegisterEvent("ACHIEVEMENT_EARNED")
-eventFrame:RegisterEvent("CRITERIA_UPDATE")
 
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         hasEnteredWorld = true
-        TAT:RunScan()
+        if not TAT.initialScanDone then
+            TAT:RunScan()
+        end
     elseif event == "RECEIVED_ACHIEVEMENT_LIST" then
-        -- Cancel any pending achievement retry timers and scan immediately
-        if TAT.achRetryTimer then
-            TAT.achRetryTimer:Cancel()
-            TAT.achRetryTimer = nil
-        end
-        TAT.criteriaLookupBuilt = false
-        TAT:RunScan()
-    elseif event == "ACHIEVEMENT_EARNED" or event == "CRITERIA_UPDATE" then
-        -- Reset lookup cache on achievement progress change and scan
-        TAT.criteriaLookupBuilt = false
-        if not TAT.scanThrottled then
-            TAT.scanThrottled = true
-            C_Timer.After(2.0, function()
-                TAT.scanThrottled = nil
-                TAT:RunScan()
-            end)
-        end
-    elseif event == "QUEST_LOG_UPDATE" or event == "WORLD_QUEST_COMPLETED_BY_SPELL" then
-        -- Only scan quest updates if UI is currently open, to prevent background CPU usage
-        if TAT_MainFrame and TAT_MainFrame:IsShown() then
-            if not TAT.scanThrottled then
-                TAT.scanThrottled = true
-                C_Timer.After(2.0, function()
-                    TAT.scanThrottled = nil
-                    TAT:RunScan()
-                end)
+        if not TAT.initialScanDone then
+            -- Cancel any pending achievement retry timers and scan immediately
+            if TAT.achRetryTimer then
+                TAT.achRetryTimer:Cancel()
+                TAT.achRetryTimer = nil
             end
+            TAT:RunScan()
         end
     end
 end)

@@ -514,7 +514,6 @@ function TAT:ToggleUI()
         mainFrame:SetAlpha(0)
         mainFrame:Show()
         UIFrameFadeIn(mainFrame, 0.15, 0, 1)
-        TAT:RunScan()
         TAT:RefreshUI()
     end
 end
