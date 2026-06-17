@@ -222,6 +222,30 @@ local function IsExcludedCategory(catID)
     return false
 end
 
+-- Helper to determine if an achievement is categorized under a target category (e.g. "professions", "player vs. player", "pet battles")
+local function IsAchievementInCategory(achievementID, targetCategoryLower)
+    local catID = GetAchievementCategory(achievementID)
+    if not catID then return false end
+    
+    local currentID = catID
+    for i = 1, 10 do
+        if not currentID or currentID == -1 then break end
+        local name, parentID = GetCategoryInfo(currentID)
+        if name then
+            local nameLower = name:lower()
+            if nameLower == targetCategoryLower or 
+               (targetCategoryLower == "professions" and nameLower == "profession") or
+               (targetCategoryLower == "player vs. player" and nameLower == "pvp") or
+               (targetCategoryLower == "pet battles" and nameLower == "pet battle") then
+                return true
+            end
+        end
+        currentID = parentID
+    end
+    
+    return false
+end
+
 TAT.criteriaLookupBuilt = false
 
 -- Builds the global criteria lookup table from all incomplete achievements
@@ -358,8 +382,7 @@ function TAT:RunScan(force)
                             local tagInfo = C_QuestLog.GetQuestTagInfo(questID)
                             local isPetBattle = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.PetBattle
                             local isPvP = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.PvP
-                            local isProfession = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.Profession
-                            local isNormal = not isPetBattle and not isPvP and not isProfession
+                            local isProfession = tagInfo and (tagInfo.worldQuestType == Enum.QuestTagType.Profession or (tagInfo.tradeskillLineID and tagInfo.tradeskillLineID > 0))
                             
                             local matchedInfos = {}
                             local addedAchievements = {}
@@ -395,6 +418,12 @@ function TAT:RunScan(force)
                                 local mapInfo = C_Map.GetMapInfo(mapID)
                                 local zoneName = mapInfo and mapInfo.name or "Unknown Zone"
                                 
+                                -- Determine category flags based on quest tags and/or achievement categories
+                                local finalIsPetBattle = isPetBattle or IsAchievementInCategory(critInfo.achievementID, "pet battles")
+                                local finalIsPvP = isPvP or IsAchievementInCategory(critInfo.achievementID, "player vs. player")
+                                local finalIsProfession = isProfession or IsAchievementInCategory(critInfo.achievementID, "professions")
+                                local finalIsNormal = not finalIsPetBattle and not finalIsPvP and not finalIsProfession
+                                
                                 local questData = {
                                     questID = questID,
                                     title = title,
@@ -404,10 +433,10 @@ function TAT:RunScan(force)
                                     achievementID = critInfo.achievementID,
                                     achievementName = critInfo.achievementName,
                                     criteriaString = critInfo.criteriaString,
-                                    isPetBattle = isPetBattle,
-                                    isPvP = isPvP,
-                                    isProfession = isProfession,
-                                    isNormal = isNormal,
+                                    isPetBattle = finalIsPetBattle,
+                                    isPvP = finalIsPvP,
+                                    isProfession = finalIsProfession,
+                                    isNormal = finalIsNormal,
                                     expansion = expansion
                                 }
                                 
