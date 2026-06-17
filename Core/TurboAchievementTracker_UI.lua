@@ -248,7 +248,9 @@ local function UpdateAchievementsPage()
             
             local critText = q.criteriaString
             if reqQuantity and reqQuantity > 1 then
-                critText = string.format("%s (%d/%d)", q.criteriaString, quantity or 0, reqQuantity)
+                if not string.find(q.criteriaString, "%d+/%d+") then
+                    critText = string.format("%s (%d/%d)", q.criteriaString, quantity or 0, reqQuantity)
+                end
             end
             local qCriteria = subRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             qCriteria:SetPoint("BOTTOMLEFT", 8, 5)
