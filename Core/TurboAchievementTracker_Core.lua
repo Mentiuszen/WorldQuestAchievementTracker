@@ -1,8 +1,6 @@
 local addonName, TAT = ...
 TAT.zoneMapIDs = {}
 TAT.criteriaLookup = {}
-TAT.activeNeededQuests = {}
-TAT.progressableAchievements = {}
 TAT.scannedNeededQuests = {}
 
 local eventFrame = CreateFrame("Frame")
@@ -271,8 +269,8 @@ function TAT:RebuildCriteriaLookup(force)
             local total = GetCategoryNumAchievements(catID)
             totalAchievementsInGame = totalAchievementsInGame + total
             for i = 1, total do
-                local id, achName, _, achCompleted, _, _, _, _, _, _, _, _, wasEarnedByMe = GetAchievementInfo(catID, i)
-                if id and not (achCompleted and wasEarnedByMe) then
+                local ok, id, achName, _, achCompleted, _, _, _, _, _, _, _, _, wasEarnedByMe = pcall(GetAchievementInfo, catID, i)
+                if ok and id and not (achCompleted and wasEarnedByMe) then
                     scannedAchievementsCount = scannedAchievementsCount + 1
                     ScanAchievement(id, TAT.criteriaLookup)
                 end
@@ -380,9 +378,11 @@ function TAT:RunScan(force)
                         else
                             -- Query quest types
                             local tagInfo = C_QuestLog.GetQuestTagInfo(questID)
-                            local isPetBattle = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.PetBattle
-                            local isPvP = tagInfo and tagInfo.worldQuestType == Enum.QuestTagType.PvP
-                            local isProfession = tagInfo and (tagInfo.worldQuestType == Enum.QuestTagType.Profession or (tagInfo.tradeskillLineID and tagInfo.tradeskillLineID > 0))
+                            local wqType = tagInfo and tagInfo.worldQuestType
+                            local QTT = Enum and Enum.QuestTagType
+                            local isPetBattle = wqType and QTT and wqType == QTT.PetBattle
+                            local isPvP = wqType and QTT and wqType == QTT.PvP
+                            local isProfession = (wqType and QTT and QTT.Profession and wqType == QTT.Profession) or (tagInfo and tagInfo.tradeskillLineID and tagInfo.tradeskillLineID > 0)
                             
                             local matchedInfos = {}
                             local addedAchievements = {}
@@ -455,23 +455,6 @@ function TAT:RunScan(force)
         TAT:UpdateUI()
     end
 
-    -- Print debug information to chat if enabled
-    if TAT.db.enableDebug then
-        local colorPrefix = "|cff8855ff[TAT Debug]:|r "
-        local filteredQuests = TAT:GetFilteredQuests()
-        local msg = string.format(
-            "%sScanned %d achievements (%d criteria lookup). Scanned %d zones, found %d active WQs. Matched %d (showing %d after filters) needed WQs!",
-            colorPrefix,
-            TAT.lastScanStats and TAT.lastScanStats.achievements or 0,
-            TAT.lastScanStats and TAT.lastScanStats.criteria or 0,
-            mapsScannedCount,
-            questsFoundCount,
-            #TAT.scannedNeededQuests,
-            #filteredQuests
-        )
-        DEFAULT_CHAT_FRAME:AddMessage(msg)
-    end
-
     -- Print reminder on the first successful scan of the session (after player fully enters world)
     if hasEnteredWorld and TAT.db.showLoginReminder and not hasPrintedReminder and TAT.criteriaLookupBuilt then
         hasPrintedReminder = true
@@ -516,7 +499,7 @@ function TAT:GetFilteredQuests()
         if TAT.db.filterNormal and q.isNormal then passType = true end
         
         local passExp = false
-        local expansion = GetMapExpansion(q.mapID)
+        local expansion = q.mapID and GetMapExpansion(q.mapID) or "Other"
         local filterKey = expansion:gsub("%s+", "")
         if expansion == "Other" or TAT.db.filterExpansions[filterKey] then
             passExp = true

@@ -3,6 +3,7 @@ TAT.UI = {}
 
 local activeTab = "achievements"
 local mainFrame
+local framePool = {}
 
 -- UI Styling Constants
 local COLOR_BG = {0.05, 0.05, 0.05, 0.95}
@@ -128,11 +129,12 @@ local function UpdateAchievementsPage()
         page.scrollChild = child
     end
     
-    -- Wipe existing rows/cards inside the scroll child
+    -- Recycle existing rows back into pool
     if page.rows then
         for _, row in ipairs(page.rows) do
             row:Hide()
-            row:SetParent(nil)
+            row:ClearAllPoints()
+            table.insert(framePool, row)
         end
         wipe(page.rows)
     else
@@ -701,7 +703,10 @@ function TAT:CreateMainFrame()
     -- Footer/Credits
     local credits = sidebar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     credits:SetPoint("BOTTOM", 0, 10)
-    credits:SetText("v1.2.0 Mainline\nby Mentiuszen")
+    local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
+        or GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")
+        or "1.2.0"
+    credits:SetText(string.format("v%s Mainline\nby Mentiuszen", version))
     
     -- Page Containers
     local pageContainer = CreateFrame("Frame", nil, f)
@@ -722,78 +727,9 @@ end
 SLASH_TAT1 = "/tat"
 SlashCmdList["TAT"] = function(msg)
     local cmd = string.lower(strtrim(msg or ""))
-    if cmd == "debug" then
-        local colorPrefix = "|cff00ff00[TAT Debug Command]:|r "
-        DEFAULT_CHAT_FRAME:AddMessage(colorPrefix .. "Starting diagnostics...")
-        
-        -- 1. Check database settings
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("%sDebug Mode: %s, Login Reminder: %s", colorPrefix, tostring(TAT.db.enableDebug), tostring(TAT.db.showLoginReminder)))
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("%sFilters - Pet: %s, PvP: %s, Prof: %s, Normal: %s", colorPrefix, tostring(TAT.db.filterPetBattle), tostring(TAT.db.filterPvP), tostring(TAT.db.filterProfession), tostring(TAT.db.filterNormal)))
-        
-        -- 2. Check achievement categories
-        local categories = GetCategoryList()
-        local catCount = categories and #categories or 0
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("%sGetCategoryList returned %d categories.", colorPrefix, catCount))
-        
-        -- Check if category 15283 is in the list
-        local foundCat = false
-        if categories then
-            for _, catID in ipairs(categories) do
-                if catID == 15283 then
-                    foundCat = true
-                    break
-                end
-            end
-        end
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("%sIs category 15283 (World) in GetCategoryList? %s", colorPrefix, tostring(foundCat)))
-        
-        -- Print a few categories
-        if catCount > 0 then
-            local names = {}
-            for i = 1, math.min(5, catCount) do
-                local name = GetCategoryInfo(categories[i])
-                table.insert(names, string.format("%d:%s", categories[i], name or "nil"))
-            end
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("%sFirst 5 categories: %s", colorPrefix, table.concat(names, ", ")))
-        end
-        
-        -- 3. Check "Mission Accomplished" achievement (ID 11475)
-        local id, name, points, completed, _, _, _, _, _, _, _, _, wasEarnedByMe = GetAchievementInfo(11475)
-        if id then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("%sAchievement 11475: '%s' (Points: %d, Completed: %s, EarnedByMe: %s)", colorPrefix, name, points, tostring(completed), tostring(wasEarnedByMe)))
-            local catID = GetAchievementCategory(11475)
-            if catID then
-                local catName = GetCategoryInfo(catID)
-                local total = GetCategoryNumAchievements(catID)
-                DEFAULT_CHAT_FRAME:AddMessage(string.format("%sCategory %d: '%s' (Total achievements in category: %d)", colorPrefix, catID, catName or "nil", total))
-            end
-            
-            local numCriteria = GetAchievementNumCriteria(11475)
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("%sNum Criteria: %d", colorPrefix, numCriteria))
-            for i = 1, numCriteria do
-                local criteriaString, criteriaType, criteriaCompleted, _, _, _, _, assetID = GetAchievementCriteriaInfo(11475, i)
-                DEFAULT_CHAT_FRAME:AddMessage(string.format("  Crit %d: '%s' (Type: %d, Completed: %s, AssetID: %s)", i, criteriaString or "nil", criteriaType or -1, tostring(criteriaCompleted), tostring(assetID)))
-            end
-        else
-            DEFAULT_CHAT_FRAME:AddMessage(colorPrefix .. "Achievement 11475 (Mission Accomplished) NOT found via GetAchievementInfo!")
-        end
-        
-        -- 4. Check if 11475 is in our criteria lookup
-        local foundInLookup = false
-        for key, infoList in pairs(TAT.criteriaLookup) do
-            for _, critInfo in ipairs(infoList) do
-                if critInfo.achievementID == 11475 then
-                    foundInLookup = true
-                    DEFAULT_CHAT_FRAME:AddMessage(string.format("%sFound in criteriaLookup under key '%s' -> '%s' (Index %d)", colorPrefix, tostring(key), critInfo.criteriaString, critInfo.criteriaIndex))
-                end
-            end
-        end
-        if not foundInLookup then
-            DEFAULT_CHAT_FRAME:AddMessage(colorPrefix .. "Achievement 11475 is NOT in TAT.criteriaLookup!")
-        end
-        
-        -- 5. Force a scan and print the output
-        TAT:RunScan()
+    if cmd == "scan" then
+        TAT:RunScan(true)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[TurboAchievementTracker]:|r Manual scan completed.")
     else
         TAT:ToggleUI()
     end

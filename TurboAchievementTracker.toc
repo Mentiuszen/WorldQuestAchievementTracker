@@ -2,7 +2,7 @@
 ## Title: TurboAchievementTracker
 ## Notes: Tracks world quests needed for time-gated achievements (especially Pet Battles).
 ## Author: Mentiuszen
-## Version: 1.0.0
+## Version: 1.2.0
 ## SavedVariables: TurboAchievementTracker_DB
 
 Templates\mQoL_Styles.lua

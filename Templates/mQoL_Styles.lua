@@ -1,7 +1,7 @@
 local addonName, mQoL = ...
 mQoL_Styles = mQoL_Styles or {}
 
-local addonFolder = tostring(addonName or "DungeonTeleportsTab")
+local addonFolder = tostring(addonName or "TurboAchievementTracker")
 local textureBasePath = "Interface\\AddOns\\" .. addonFolder .. "\\Media\\Textures\\"
 
 local function GetTexturePath(fileName)

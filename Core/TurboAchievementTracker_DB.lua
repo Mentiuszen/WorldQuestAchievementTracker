@@ -3,7 +3,6 @@ TAT.db = {}
 
 local defaultSettings = {
     showLoginReminder = true,
-    enableDebug = false,
     filterPetBattle = true,
     filterPvP = false,
     filterProfession = false,
@@ -42,7 +41,18 @@ local defaultSettings = {
         achievementNames = {
             ["resilient keystone"] = true,
         },
-        achievementIDs = {}
+        achievementIDs = {
+            [12089] = true,
+            [12091] = true,
+            [12092] = true,
+            [12093] = true,
+            [12094] = true,
+            [12095] = true,
+            [12096] = true,
+            [12097] = true,
+            [12098] = true,
+            [12099] = true,
+        }
     },
     minimap = {
         hide = false,
@@ -57,7 +67,7 @@ local defaultSettings = {
     }
 }
 
--- Recursive helper to copy default settings into target database without overwriting existing entries
+-- db copy helper
 local function CopyDefaults(src, dest)
     for k, v in pairs(src) do
         if type(v) == "table" then
@@ -85,7 +95,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddonName)
     
     TAT.db = _G.TurboAchievementTracker_DB
     
-    -- Load defaults recursively
+    -- Load defaults
     CopyDefaults(defaultSettings, TAT.db)
     
     -- Broadcast that database is loaded
