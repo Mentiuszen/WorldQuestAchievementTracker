@@ -675,12 +675,16 @@ function WQAT:CreateMainFrame()
     f.btnAchievements = CreateNavButton("Achievements", -20, "achievements")
     f.btnSettings = CreateNavButton("Settings", -60, "settings")
     
-    local credits = sidebar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    credits:SetPoint("BOTTOM", 0, 10)
+    local verText = sidebar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    verText:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMLEFT", 12, 10)
     local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
         or GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")
         or "1.0.0"
-    credits:SetText(string.format("v%s Release\nby Mentiuszen", version))
+    verText:SetText("v" .. version)
+    
+    local authText = sidebar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    authText:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", -12, 10)
+    authText:SetText("by Mentiuszen")
     
     local pageContainer = CreateFrame("Frame", nil, f)
     pageContainer:SetSize(610, 440)
@@ -697,8 +701,6 @@ function WQAT:CreateMainFrame()
 end
 
 SLASH_WQAT1 = "/wqat"
-SLASH_WQAT2 = "/tat"
-SLASH_WQAT3 = "/wq"
 SlashCmdList["WQAT"] = function(msg)
     local cmd = string.lower(strtrim(msg or ""))
     if cmd == "scan" then
