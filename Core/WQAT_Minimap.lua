@@ -4,13 +4,13 @@ local LDB = LibStub and LibStub:GetLibrary("LibDataBroker-1.1", true)
 local LDBIcon = LibStub and LibStub("LibDBIcon-1.0", true)
 
 if LDB and LDBIcon then
-    local launcher = LDB:NewDataObject("WorldQuestAchievementTracker", {
+    local launcher = LDB:NewDataObject("WQAT", {
         type = "launcher",
-        text = "World Quest Achievement Tracker",
+        text = "WQAT",
         icon = "Interface\\Icons\\ACHIEVEMENT_GUILD_DOCTORISIN",
         OnTooltipShow = function(tooltip)
             tooltip:ClearLines()
-            tooltip:AddLine("|cffFFD100World Quest Achievement Tracker|r")
+            tooltip:AddLine("|cffFFD100WQAT|r")
             tooltip:AddLine(" ")
             tooltip:AddLine("|cff00ff00Left-click|r: Open window")
         end,
@@ -23,25 +23,25 @@ if LDB and LDBIcon then
 
     function WQAT:InitializeMinimapButton()
         if not WQAT.db or not WQAT.db.minimap then return end
-        LDBIcon:Register("WorldQuestAchievementTracker", launcher, WQAT.db.minimap)
+        LDBIcon:Register("WQAT", launcher, WQAT.db.minimap)
         if WQAT.db.minimap.hide then
-            LDBIcon:Hide("WorldQuestAchievementTracker")
+            LDBIcon:Hide("WQAT")
         else
-            LDBIcon:Show("WorldQuestAchievementTracker")
+            LDBIcon:Show("WQAT")
         end
     end
 
     function WQAT:UpdateMinimapButtonVisibility()
         if not WQAT.db or not WQAT.db.minimap then return end
         if WQAT.db.minimap.hide then
-            LDBIcon:Hide("WorldQuestAchievementTracker")
+            LDBIcon:Hide("WQAT")
         else
-            LDBIcon:Show("WorldQuestAchievementTracker")
+            LDBIcon:Show("WQAT")
         end
     end
 else
     function WQAT:InitializeMinimapButton()
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[World Quest Achievement Tracker]:|r LibDBIcon-1.0 or LibDataBroker-1.1 not found. Minimap button disabled.")
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[WQAT]:|r LibDBIcon-1.0 or LibDataBroker-1.1 not found. Minimap button disabled.")
     end
     function WQAT:UpdateMinimapButtonVisibility()
     end

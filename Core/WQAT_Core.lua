@@ -451,7 +451,7 @@ function WQAT:RunScan(force)
         for _ in pairs(uniqueQuests) do
             neededCount = neededCount + 1
         end
-        local colorPrefix = "|cff00ff00[World Quest Achievement Tracker]:|r "
+        local colorPrefix = "|cff00ff00[WQAT]:|r "
         local msg
         if neededCount > 0 then
             msg = string.format("%sYou have |cffff0000%d|r needed World Quests available! (Scanned %d achievements, %d criteria, %d active WQs) Type /wqat to open window.", colorPrefix, neededCount, WQAT.lastScanStats.achievements, WQAT.lastScanStats.criteria, questsFoundCount)
@@ -539,8 +539,8 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             local removed = false
             for i = #WQAT.scannedNeededQuests, 1, -1 do
                 if WQAT.scannedNeededQuests[i].questID == questID then
-                    table.remove(WQAT.scannedNeededQuests, i)
-                    removed = true
+                     table.remove(WQAT.scannedNeededQuests, i)
+                     removed = true
                 end
             end
             if removed and WQAT.UpdateUI then

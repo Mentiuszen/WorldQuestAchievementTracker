@@ -87,17 +87,23 @@ frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(self, event, loadedAddonName)
     if loadedAddonName ~= addonName then return end
     
-    if not _G.WorldQuestAchievementTracker_DB then
-        _G.WorldQuestAchievementTracker_DB = {}
+    if not _G.WQAT_DB then
+        _G.WQAT_DB = {}
+    end
+    
+    -- Migrate settings from legacy WorldQuestAchievementTracker_DB if present
+    if _G.WorldQuestAchievementTracker_DB then
+        CopyDefaults(_G.WorldQuestAchievementTracker_DB, _G.WQAT_DB)
+        _G.WorldQuestAchievementTracker_DB = nil
     end
     
     -- Migrate settings from legacy TurboAchievementTracker_DB if present
     if _G.TurboAchievementTracker_DB then
-        CopyDefaults(_G.TurboAchievementTracker_DB, _G.WorldQuestAchievementTracker_DB)
+        CopyDefaults(_G.TurboAchievementTracker_DB, _G.WQAT_DB)
         _G.TurboAchievementTracker_DB = nil
     end
     
-    WQAT.db = _G.WorldQuestAchievementTracker_DB
+    WQAT.db = _G.WQAT_DB
     CopyDefaults(defaultSettings, WQAT.db)
     
     if WQAT.OnDatabaseLoaded then

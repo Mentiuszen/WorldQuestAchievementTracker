@@ -1,0 +1,15 @@
+## Interface: 120005, 120007
+## Title: WQAT
+## Notes: Tracks world quests needed for time-gated achievements.
+## Author: Mentiuszen
+## Version: 1.0.0
+## SavedVariables: WQAT_DB, WorldQuestAchievementTracker_DB
+Libs\libs.xml
+
+Templates\mQoL_Styles.lua
+Templates\mQoL_Templates.lua
+
+Core\WQAT_DB.lua
+Core\WQAT_Core.lua
+Core\WQAT_UI.lua
+Core\WQAT_Minimap.lua

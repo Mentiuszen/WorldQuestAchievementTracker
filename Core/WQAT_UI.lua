@@ -258,7 +258,7 @@ local function UpdateAchievementsPage()
                 C_Timer.After(0.15, function()
                     mainFrame:Hide()
                 end)
-                print(string.format("|cff00ff00[World Quest Achievement Tracker]:|r Tracking set to |cffffff00%s|r!", q.title))
+                print(string.format("|cff00ff00[WQAT]:|r Tracking set to |cffffff00%s|r!", q.title))
             end)
             trackBtn:SetPoint("RIGHT", -6, 0)
             
@@ -491,7 +491,7 @@ local function UpdateSettingsPage()
         scanBtn:SetPoint("TOPLEFT", child, "TOPLEFT", 25, -yOffset)
         scanBtn:SetScript("OnClick", function()
             WQAT:RunScan(true)
-            print("|cff00ff00[World Quest Achievement Tracker]:|r Manual scan completed successfully.")
+            print("|cff00ff00[WQAT]:|r Manual scan completed successfully.")
         end)
         page.scanBtn = scanBtn
         
@@ -624,7 +624,7 @@ function WQAT:CreateMainFrame()
     
     local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     titleText:SetPoint("LEFT", 12, 0)
-    titleText:SetText("World Quest Achievement Tracker")
+    titleText:SetText("WQAT")
     titleText:SetTextColor(1, 0.82, 0)
     
     local closeBtn = mQoL_Templates.CreateCloseButton(titleBar, 20, function()
@@ -705,7 +705,7 @@ SlashCmdList["WQAT"] = function(msg)
     local cmd = string.lower(strtrim(msg or ""))
     if cmd == "scan" then
         WQAT:RunScan(true)
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[World Quest Achievement Tracker]:|r Manual scan completed.")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[WQAT]:|r Manual scan completed.")
     else
         WQAT:ToggleUI()
     end
