@@ -1,7 +1,7 @@
 local addonName, mQoL = ...
 mQoL_Styles = mQoL_Styles or {}
 
-local addonFolder = tostring(addonName or "WorldQuestAchievementTracker")
+local addonFolder = tostring(addonName or "WQAT")
 local textureBasePath = "Interface\\AddOns\\" .. addonFolder .. "\\Media\\Textures\\"
 
 local function GetTexturePath(fileName)

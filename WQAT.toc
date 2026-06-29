@@ -4,6 +4,7 @@
 ## Author: Mentiuszen
 ## Version: 1.0.0
 ## SavedVariables: WQAT_DB, WorldQuestAchievementTracker_DB
+## IconTexture: Interface\AddOns\WQAT\Media\logo\wqatlogo.blp
 Libs\libs.xml
 
 Templates\mQoL_Styles.lua
